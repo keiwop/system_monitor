@@ -1,31 +1,50 @@
 
 
 class Formatting:
+	multiples = ["", "K", "M", "G", "T", "P"]
 	
-	units_size_iec = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
-	units_size_metric = ["B", "KB", "MB", "GB", "TB", "PB"]
+	units_sizes = {	"B": "iec", 
+					"Bps": "iec",
+					"B/s": "iec",
+					"bps": "metric",
+					"b/s": "metric"}
+	
+	units_prefixes = {	"iec": (1024, "i", ""),
+						"metric": (1000, "", "")}
 	
 	def __init__(self):
 		pass
-	
-	def size(self, in_size, unit="iec"):
-		if unit == "iec":
-			multiplier = 1024
-			units_list = self.units_size_iec
-		elif unit == "metric":
-			multiplier = 1000
-			units_list = self.units_size_metric
+
+	def formatter(self, value, unit="B", prefix=None, precision=.1, show_unit=True):
+		multiplier = 1000
+		f_prefix = ""
+		base_prefix = ""
 		
-		formatted_size = f"0{units_list[0]}"
+		if unit in self.units_sizes:
+			if prefix is None:
+				prefix = self.units_prefixes[self.units_sizes[unit]]
+			if prefix in self.units_prefixes:
+				multiplier, f_prefix, base_prefix = self.units_prefixes[prefix]
 		
-		for i, unit in enumerate(reversed(units_list)):
-			index = len(units_list) - 1 - i
-			tmp_size = in_size / (multiplier ** index)
-			in_size = in_size % int(multiplier ** index)
+		formatted_size = f"0{self.multiples[0]}"
+		
+		for i, multiple in enumerate(reversed(self.multiples)):
+			index = len(self.multiples) - 1 - i
+			tmp_size = value / (multiplier ** index)
+			value = value % int(multiplier ** index)
 			
 			if int(tmp_size) > 0:
-				formatted_size = f"{tmp_size:.1f} {unit}"
+				if index == 0:
+					f_prefix = base_prefix
+				formatted_size = f"{tmp_size:{precision}f}"
+				if show_unit:
+					formatted_size += f" {multiple}{f_prefix}{unit}"
 				break
+		
 		return formatted_size
+	
+	def size(self, value, unit="B", prefix=None, precision=.2, show_unit=True):
+		return self.formatter(value, unit, prefix, precision, show_unit)
 			
-			
+	def speed(self, value, unit="B/s", prefix=None, precision=.2, show_unit=True):
+		return self.formatter(value, unit, prefix, precision, show_unit)

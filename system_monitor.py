@@ -1,48 +1,60 @@
 #! /usr/bin/env python3
 
 from process_monitor import ProcessMonitor
+from wrapper_nethogs import NethogsMonitor
+from app_handler import AppHandler
 from formatting import Formatting
+import signal
 import psutil
 import time
+import sys
+import os
 
+f = Formatting()
 
-class NetworkMonitor:
-	iface_dict = {}
+class SystemMonitor:
+	handler = None
+	pmon = None
+	nhmon = None
+	continue_loop = True
 	
 	def __init__(self):
-		pass
+		self.handler = AppHandler(self)
+		self.pmon = ProcessMonitor()
+		self.nhmon = NethogsMonitor(self.handler)
+		
+	def main_loop(self):
+		while self.continue_loop:
+			self.print_info()
+			#print("\n\nNEW FUCKING LOOP\n\n")
+			time.sleep(1)
 	
+	def stop(self):
+		self.nhmon.stop()
 	
+	def print_info(self):
+		os.system("clear")
+		print("")
+		for p in self.pmon.get_proc_list(nb_proc=8, order_by="rx"):
+			print(f"{f.size(p.used_mem):10} - {p.used_cpu:6.1f}% - {f.speed(p.rx):6} (rx) - {f.speed(p.tx):6} (tx) -> {p.name}")
+		
+		print("")
+		print(f"Memory usage: {self.pmon.get_str_mem()}")
+		print(f"CPU usage: {self.pmon.get_str_cpu()}")
+		print(f"CPU usage: {self.pmon.get_str_cpu_perc()}")
+		print(f"Network rx: {self.pmon.get_str_net_rx()}")
+		print(f"Network tx: {self.pmon.get_str_net_tx()}")
+	
+
+def signal_handler(signal, *args):
+	print(f"Signal {signal} received, exiting")
+	sysmon.stop()
+	sys.exit()
 
 
 if __name__ == "__main__":
-	pmon = ProcessMonitor()
-	f = Formatting()
-	#print()
+	signal.signal(signal.SIGINT, signal_handler)
+	signal.signal(signal.SIGTERM, signal_handler)
 	
-	continue_loop = True
-	
-	while continue_loop:
-		print("")
-		for p in pmon.get_proc_list(nb_proc=8, order_by="mem"):
-			print(f"{p.used_mem:6} - {p.used_cpu:6} -> {p.name}")
-		
-		print(f"{pmon.get_used_mem()}");
-		print("===")
-		print(f.size(pmon.get_used_mem(), unit="iec"))
-		print("====")
-		print(pmon.get_used_mem_perc());
-		print(pmon.get_free_mem_perc());
-		print(pmon.get_used_cpu());
-		print(pmon.get_used_cpu_percent());
-		print(psutil.cpu_percent());
-		
-		time.sleep(1)
-
-	#for proc in psutil.process_iter():
-		#if "chrome" in proc.name():
-			##print(dir(proc))
-			#print(proc.io_counters())
-		#if "Xorg" in proc.name():
-			#print(f"{proc.pid} -> {proc.cpu_percent(interval=0.0)}")
-		
+	sysmon = SystemMonitor()
+	sysmon.main_loop()
