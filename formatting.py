@@ -22,7 +22,7 @@ class Formatting:
 		
 		if unit in self.units_sizes:
 			if prefix is None:
-				prefix = self.units_prefixes[self.units_sizes[unit]]
+				prefix = self.units_sizes[unit]
 			if prefix in self.units_prefixes:
 				multiplier, f_prefix, base_prefix = self.units_prefixes[prefix]
 		

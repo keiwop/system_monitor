@@ -5,18 +5,44 @@ import time
 f = Formatting()
 
 class Process:
-	pid = None
+	pid = -1
+	proc = None
 	name = ""
 	used_mem = 0
 	used_cpu = 0
 	rx = 0
 	tx = 0
-	iface = None
+	iface = ""
+	old_disk_read = 0
+	old_disk_write = 0
+	disk_read = 0
+	disk_write = 0
 	is_virtual = False
 	
 	def __init__(self, pid=-1, is_virtual=False):
 		self.pid = pid
 		self.is_virtual = is_virtual
+	
+	def update(self, proc):
+		self.proc = proc
+		self.update_mem()
+		self.update_cpu()
+		self.update_disk()
+	
+	def update_mem(self):
+		self.used_mem = self.proc.memory_info().rss
+	
+	def update_cpu(self):
+		self.used_cpu = self.proc.cpu_percent(interval=0.0)
+	
+	def update_disk(self):
+		# TODO: calculate the disk io each second instead of each update
+		read = self.proc.io_counters().read_bytes
+		write = self.proc.io_counters().write_bytes
+		self.disk_read = max(read - self.old_disk_read, 0)
+		self.disk_write = max(write - self.old_disk_write, 0)
+		self.old_disk_read = read
+		self.old_disk_write = write
 	
 	def kill(self):
 		if is_virtual:
@@ -28,72 +54,129 @@ class Process:
 			print(f"Killing process {self.pid}: {self.name}")
 			proc = psutil.Process(self.pid)
 			proc.kill()
+
 			
+class MemInfo:
+	total = 0
+	used = 0
+	used_perc = 0
+	free = 0
+	free_perc = 0
+	
+	def __init__(self):
+		self.total = psutil.virtual_memory().total
+	
+	def update(self):
+		self.used_perc = ((self.used / self.total) * 100)
+		self.free = self.total - self.used
+		self.free_perc = 100 - self.used_perc
+	
+	def reset(self):
+		self.used = 0
+
+
+class DiskInfo:
+	read = 0
+	write = 0
+	
+	def update(self):
+		pass
+	
+	def reset(self):
+		self.read = 0
+		self.write = 0
+
+
+class CpuInfo:
+	count = 0
+	used = 0
+	used_perc = 0
+	
+	def __init__(self):
+		self.count = psutil.cpu_count()
+	
+	def update(self):
+		self.used_perc = self.used / self.count
+	
+	def reset(self):
+		self.used = 0
+
+
+class NetInfo:
+	iface = ""
+	rx = 0
+	tx = 0
+	
+	def update(self):
+		pass
+	
+	def reset(self):
+		self.rx = 0
+		self.tx = 0
+
+
+class SystemInfo:
+	mem = MemInfo()
+	cpu = CpuInfo()
+	disk = DiskInfo()
+	net = NetInfo()
+	
+	def update(self):
+		self.mem.update()
+		self.cpu.update()
+		self.disk.update()
+		self.net.update()
+	
+	def update_proc_data(self, p):
+		self.mem.used += p.used_mem
+		self.cpu.used += p.used_cpu
+		self.disk.read += p.disk_read
+		self.disk.write += p.disk_write
+		self.net.rx += p.rx
+		self.net.tx += p.tx
+	
+	def reset(self):
+		self.mem.reset()
+		self.cpu.reset()
+		self.disk.reset()
+		self.net.reset()
+	
+	def str_mem(self):
+		return f"{f.size(self.mem.used, show_unit=False)} / {f.size(self.mem.total, unit='B')} ({self.mem.used_perc:.1f}% used)"
+	
+	def str_cpu(self):
+		return f"{self.cpu.used:.1f} / {int(self.cpu.count * 100)}"
+	
+	def str_cpu_perc(self):
+		return f"{self.cpu.used/self.cpu.count:.1f}%"
+	
+	def str_net_rx(self):
+		return f"{f.speed(self.net.rx)} ({f.speed(self.net.rx*8, unit='bps')})"
+	
+	def str_net_tx(self):
+		return f"{f.speed(self.net.tx)} ({f.speed(self.net.tx*8, unit='bps')})"
+	
+	def str_disk_read(self):
+		return f"{f.speed(self.disk.read)}"
+	
+	def str_disk_write(self):
+		return f"{f.speed(self.disk.write)}"
 
 
 class ProcessMonitor:
 	proc_dict = {}
 	proc_list = []
-	total_mem = 0
-	total_mem_used = 0
-	total_cpu_used = 0
-	total_rx = 0
-	total_tx = 0
-	cpu_count = 0
-	#nb_proc = 0
+	info = None
 	
 	def __init__(self, init_time=0.01):
-		self.total_mem = psutil.virtual_memory().total
-		self.cpu_count = psutil.cpu_count()
+		self.info = SystemInfo()
 		for proc in psutil.process_iter():
 			proc.cpu_percent(interval=0.0)
 		time.sleep(init_time)
-	
-	
-	def get_total_mem(self):
-		return self.total_mem
-	
-	def get_used_mem(self):
-		return self.total_mem_used
-	
-	def get_free_mem(self):
-		return self.total_mem - self.get_used_mem()
-	
-	def get_used_mem_perc(self):
-		return (self.get_used_mem() / self.total_mem * 100)
-	
-	def get_free_mem_perc(self):
-		return 100 - self.get_used_mem_perc()
-	
-	
-	def get_used_cpu(self):
-		return self.total_cpu_used
-	
-	def get_used_cpu_percent(self):
-		if self.total_cpu_used <= 0:
-			return psutil.cpu_percent()
-		return self.total_cpu_used / self.cpu_count
-	
-	
-	def get_str_mem(self):
-		return f"{f.size(self.get_used_mem(), show_unit=False)} / {f.size(self.total_mem, unit='B')} ({self.get_used_mem_perc():.1f}% used)"
-	
-	def get_str_cpu(self):
-		return f"{self.get_used_cpu():.1f} / {int(self.cpu_count * 100)}"
-	
-	def get_str_cpu_perc(self):
-		return f"{self.get_used_cpu()/self.cpu_count:.1f}%"
-	
-	def get_str_net_rx(self):
-		return f"{f.speed(self.total_rx)} ({f.speed(self.total_rx*8, unit='bps')})"
-	
-	def get_str_net_tx(self):
-		return f"{f.speed(self.total_tx)} ({f.speed(self.total_tx*8, unit='bps')})"
-	
+
 	
 	def get_proc_from_pid(self, pid):
 		if psutil.pid_exists(pid):
-			#print("PID EXISTS")
 			proc = psutil.Process(pid)
 			if proc.name() in self.proc_dict:
 				for index, p in enumerate(self.proc_dict[proc.name()]):
@@ -102,14 +185,12 @@ class ProcessMonitor:
 		return None
 	
 	
-	def update_proc_mem(self, p, proc):
-		p.used_mem = proc.memory_info().rss
-	
-	def update_proc_cpu(self, p, proc):
-		p.used_cpu = proc.cpu_percent(interval=0.0)
-	
+	def update(self):
+		self.update_proc_dict()
+		self.update_proc_list()
+		self.info.update()
+
 	def update_proc_network(self, pid, iface, rx, tx):
-		#p = Process(pid)
 		proc_info = self.get_proc_from_pid(pid)
 		if proc_info is not None:
 			p, index = proc_info
@@ -117,14 +198,11 @@ class ProcessMonitor:
 			p.rx = rx
 			p.tx = tx
 			self.proc_dict[p.name][index] = p
-	
+
 	
 	def update_proc_dict(self):
-		#self.proc_dict = {}
-		self.total_mem_used = 0
-		self.total_cpu_used = 0
-		self.total_rx = 0
-		self.total_tx = 0
+		self.info.reset()
+		
 		for proc in psutil.process_iter():
 			# FIXME: Can be coded in a better way, because it's quite ugly at the moment
 			proc_info = self.get_proc_from_pid(proc.pid)
@@ -135,13 +213,8 @@ class ProcessMonitor:
 			else:
 				p, index = proc_info
 
-			self.update_proc_mem(p, proc)
-			self.update_proc_cpu(p, proc)
-				
-			self.total_mem_used += p.used_mem
-			self.total_cpu_used += p.used_cpu
-			self.total_rx += p.rx
-			self.total_tx += p.tx
+			p.update(proc)
+			self.info.update_proc_data(p)
 			
 			if p.name not in self.proc_dict:
 				self.proc_dict[p.name] = []
@@ -152,7 +225,6 @@ class ProcessMonitor:
 	
 	
 	def update_proc_list(self):
-		self.update_proc_dict()
 		self.proc_list = []
 		# Creating a virtual process allows to regroup all the processes sharing the same name
 		for name, p_list in self.proc_dict.items():
@@ -164,25 +236,19 @@ class ProcessMonitor:
 				virtual_proc.used_cpu += p.used_cpu
 				virtual_proc.rx += p.rx
 				virtual_proc.tx += p.tx
+				virtual_proc.disk_read += p.disk_read
+				virtual_proc.disk_write += p.disk_write
 			self.proc_list.append(virtual_proc)
 	
 	
 	def get_proc_list(self, nb_proc=4, order_by="mem"):
-		self.update_proc_list()
 		proc_list = []
-		if order_by == "mem":
-			sort_key = lambda p: p.used_mem
-		elif order_by == "cpu":
-			sort_key = lambda p: p.used_cpu
-		elif order_by == "rx":
-			sort_key = lambda p: p.rx
-		elif order_by == "tx":
-			sort_key = lambda p: p.tx
-			
-		#for proc in sorted(self.proc_list, key=sort_key, reverse=True)[:nb_proc]:
-			##proc.used_mem = f"{int(proc.used_mem / (1024*1024))}M"
-			#proc.used_mem = f.size(proc.used_mem, unit="iec")
-			#proc.used_cpu = f"{proc.used_cpu:.1f}%"
-			#proc_list.append(proc)
-		#return proc_list
+		sort_keys = {	"mem": lambda p: p.used_mem,
+						"cpu": lambda p: p.used_cpu,
+						"rx": lambda p: p.rx,
+						"tx": lambda p: p.tx,
+						"disk_read": lambda p: p.disk_read,
+						"disk_write": lambda p: p.disk_write}
+		if order_by in sort_keys:
+			sort_key = sort_keys[order_by]
 		return sorted(self.proc_list, key=sort_key, reverse=True)[:nb_proc]

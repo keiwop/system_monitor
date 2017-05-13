@@ -26,7 +26,6 @@ class SystemMonitor:
 	def main_loop(self):
 		while self.continue_loop:
 			self.print_info()
-			#print("\n\nNEW FUCKING LOOP\n\n")
 			time.sleep(1)
 	
 	def stop(self):
@@ -35,15 +34,18 @@ class SystemMonitor:
 	def print_info(self):
 		os.system("clear")
 		print("")
-		for p in self.pmon.get_proc_list(nb_proc=8, order_by="rx"):
-			print(f"{f.size(p.used_mem):10} - {p.used_cpu:6.1f}% - {f.speed(p.rx):6} (rx) - {f.speed(p.tx):6} (tx) -> {p.name}")
+		self.pmon.update()
+		for p in self.pmon.get_proc_list(nb_proc=8, order_by="disk_write"):
+			print(f"{f.size(p.used_mem):10} - {p.used_cpu:6.1f}% - {f.speed(p.rx):>12} (rx) - {f.speed(p.tx):>12} (tx) - {f.speed(p.disk_read):>12}(dr) - {f.speed(p.disk_write):>12}(dw) -> {p.name}")
 		
 		print("")
-		print(f"Memory usage: {self.pmon.get_str_mem()}")
-		print(f"CPU usage: {self.pmon.get_str_cpu()}")
-		print(f"CPU usage: {self.pmon.get_str_cpu_perc()}")
-		print(f"Network rx: {self.pmon.get_str_net_rx()}")
-		print(f"Network tx: {self.pmon.get_str_net_tx()}")
+		print(f"Memory usage: {self.pmon.info.str_mem()}")
+		print(f"CPU usage: {self.pmon.info.str_cpu()}")
+		print(f"CPU usage: {self.pmon.info.str_cpu_perc()}")
+		print(f"Network rx: {self.pmon.info.str_net_rx()}")
+		print(f"Network tx: {self.pmon.info.str_net_tx()}")
+		print(f"Disk read: {self.pmon.info.str_disk_read()}")
+		print(f"Disk write: {self.pmon.info.str_disk_write()}")
 	
 
 def signal_handler(signal, *args):
