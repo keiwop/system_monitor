@@ -37,7 +37,8 @@ class SystemMonitor:
 		print("")
 		self.pmon.update()
 		for p in self.pmon.get_proc_list(nb_proc=8, order_by="disk_write"):
-			print(f"{f.size(p.used_mem):10} - {p.used_cpu:6.1f}% - {f.speed(p.rx):>12} (rx) - {f.speed(p.tx):>12} (tx) - {f.speed(p.disk_read):>12}(dr) - {f.speed(p.disk_write):>12}(dw) -> {p.name}")
+			print(f"{f.size(p.mem.used):10} - {p.cpu.used:6.1f}% - {f.speed(p.net.rx):>12} (rx) - {f.speed(p.net.tx):>12} (tx) - {f.speed(p.disk.read):>12}(dr) - {f.speed(p.disk.write):>12}(dw) -> {p.name}")
+			#print(p.str_proc())
 		
 		print("")
 		print(f"Memory usage: {self.pmon.info.str_mem()}")
