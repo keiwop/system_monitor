@@ -58,13 +58,13 @@ class ProcessMonitor:
 	def create_virtual_proc_dict(self):
 		self.virtual_proc_dict = {}
 		# Creating a virtual process allows to regroup all the processes sharing the same name
-		for pid, p in self.proc_dict.items():
+		for pid, p in list(self.proc_dict.items()):
 			if p.name not in self.virtual_proc_dict:
 				self.virtual_proc_dict[p.name] = Process(is_virtual=True, name=p.name)
 			self.virtual_proc_dict[p.name].add_proc_data(p)
 	
 	
-	def get_proc_list(self, nb_proc=4, order_by="mem"):
+	def get_proc_list(self, nb_proc=4, sort="mem"):
 		self.create_virtual_proc_dict()
 		proc_list = self.virtual_proc_dict.values()
 		sort_keys = {	"mem": lambda p: p.mem.used,
@@ -73,6 +73,6 @@ class ProcessMonitor:
 						"tx": lambda p: p.net.tx,
 						"disk_read": lambda p: p.disk.read,
 						"disk_write": lambda p: p.disk.write}
-		if order_by in sort_keys:
-			sort_key = sort_keys[order_by]
+		if sort in sort_keys:
+			sort_key = sort_keys[sort]
 		return sorted(proc_list, key=sort_key, reverse=True)[:nb_proc]

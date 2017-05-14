@@ -2,8 +2,10 @@
 
 from process_monitor import ProcessMonitor
 from wrapper_nethogs import NethogsMonitor
+from text_ui import TextUI, CursesUI
 from app_handler import AppHandler
 from formatting import Formatting
+import config
 import signal
 import psutil
 import time
@@ -16,39 +18,34 @@ class SystemMonitor:
 	handler = None
 	pmon = None
 	nhmon = None
+	ui = None
 	continue_loop = True
 	
 	def __init__(self):
 		self.handler = AppHandler(self)
 		self.pmon = ProcessMonitor()
 		self.nhmon = NethogsMonitor(self.handler)
-		
+		self.choose_ui()
+	
+	def choose_ui(self):
+		if config.type_ui == "text":
+			self.ui = TextUI(self)
+		elif config.type_ui == "curses":
+			self.ui = CursesUI(self)
+			
 	def main_loop(self):
 		while self.continue_loop:
-			self.print_info()
-			time.sleep(1)
-			#os.system("echo -e '\0033\0143'")
+			self.ui.start()
 	
 	def stop(self):
+		self.ui.stop()
 		self.nhmon.stop()
+		self.continue_loop = False
 	
-	def print_info(self):
-		os.system("clear")
-		print("")
+	def update(self):
 		self.pmon.update()
-		for p in self.pmon.get_proc_list(nb_proc=8, order_by="disk_write"):
-			print(f"{f.size(p.mem.used):10} - {p.cpu.used:6.1f}% - {f.speed(p.net.rx):>12} (rx) - {f.speed(p.net.tx):>12} (tx) - {f.speed(p.disk.read):>12}(dr) - {f.speed(p.disk.write):>12}(dw) -> {p.name}")
-			#print(p.str_proc())
-		
-		print("")
-		print(f"Memory usage: {self.pmon.info.str_mem()}")
-		print(f"CPU usage: {self.pmon.info.str_cpu()}")
-		print(f"CPU usage: {self.pmon.info.str_cpu_perc()}")
-		print(f"Network rx: {self.pmon.info.str_net_rx()}")
-		print(f"Network tx: {self.pmon.info.str_net_tx()}")
-		print(f"Disk read: {self.pmon.info.str_disk_read()}")
-		print(f"Disk write: {self.pmon.info.str_disk_write()}")
-	
+
+
 
 def signal_handler(signal, *args):
 	print(f"Signal {signal} received, exiting")

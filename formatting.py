@@ -1,3 +1,5 @@
+import config
+
 
 
 class Formatting:
@@ -27,6 +29,8 @@ class Formatting:
 				multiplier, f_prefix, base_prefix = self.units_prefixes[prefix]
 		
 		formatted_size = f"0{self.multiples[0]}"
+		if config.show_unit_zero:
+			formatted_size += f" {unit}"
 		
 		for i, multiple in enumerate(reversed(self.multiples)):
 			index = len(self.multiples) - 1 - i
