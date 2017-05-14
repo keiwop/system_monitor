@@ -27,6 +27,7 @@ class SystemMonitor:
 		while self.continue_loop:
 			self.print_info()
 			time.sleep(1)
+			#os.system("echo -e '\0033\0143'")
 	
 	def stop(self):
 		self.nhmon.stop()

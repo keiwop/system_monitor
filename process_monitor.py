@@ -19,15 +19,22 @@ class Process:
 	disk_write = 0
 	is_virtual = False
 	
-	def __init__(self, pid=-1, is_virtual=False):
+	def __init__(self, pid=-1, name="", is_virtual=False):
 		self.pid = pid
+		self.name = name
 		self.is_virtual = is_virtual
 	
 	def update(self, proc):
 		self.proc = proc
+		if self.name is None or self.name == "":
+			self.name = self.proc.name()
 		self.update_mem()
 		self.update_cpu()
 		self.update_disk()
+	
+	def reset(self):
+		self.rx = 0
+		self.tx = 0
 	
 	def update_mem(self):
 		self.used_mem = self.proc.memory_info().rss
@@ -43,6 +50,19 @@ class Process:
 		self.disk_write = max(write - self.old_disk_write, 0)
 		self.old_disk_read = read
 		self.old_disk_write = write
+	
+	def update_net(self, iface, rx, tx):
+		self.iface = iface
+		self.rx = rx
+		self.tx = tx
+	
+	def add_proc_values(self, p):
+		self.used_mem += p.used_mem
+		self.used_cpu += p.used_cpu
+		self.rx += p.rx
+		self.tx += p.tx
+		self.disk_read += p.disk_read
+		self.disk_write += p.disk_write
 	
 	def kill(self):
 		if is_virtual:
@@ -127,7 +147,7 @@ class SystemInfo:
 		self.disk.update()
 		self.net.update()
 	
-	def update_proc_data(self, p):
+	def add_proc_data(self, p):
 		self.mem.used += p.used_mem
 		self.cpu.used += p.used_cpu
 		self.disk.read += p.disk_read
@@ -166,6 +186,7 @@ class SystemInfo:
 class ProcessMonitor:
 	proc_dict = {}
 	proc_list = []
+	virtual_proc_list = []
 	info = None
 	
 	def __init__(self, init_time=0.01):
@@ -173,76 +194,53 @@ class ProcessMonitor:
 		for proc in psutil.process_iter():
 			proc.cpu_percent(interval=0.0)
 		time.sleep(init_time)
-
-	
-	def get_proc_from_pid(self, pid):
-		if psutil.pid_exists(pid):
-			proc = psutil.Process(pid)
-			if proc.name() in self.proc_dict:
-				for index, p in enumerate(self.proc_dict[proc.name()]):
-					if p.pid == pid:
-						return (p, index)
-		return None
 	
 	
 	def update(self):
 		self.update_proc_dict()
-		self.update_proc_list()
 		self.info.update()
-
-	def update_proc_network(self, pid, iface, rx, tx):
-		proc_info = self.get_proc_from_pid(pid)
-		if proc_info is not None:
-			p, index = proc_info
-			p.iface = iface
-			p.rx = rx
-			p.tx = tx
-			self.proc_dict[p.name][index] = p
-
+	
+	def update_proc(self, p):
+		self.proc_dict[p.pid] = p
+	
+	def get_proc(self, pid):
+		if pid in self.proc_dict and psutil.pid_exists(pid):
+			return self.proc_dict[pid]
+		else:
+			return Process(pid)
+	
 	
 	def update_proc_dict(self):
 		self.info.reset()
 		
+		for pid in list(self.proc_dict):
+			if not psutil.pid_exists(pid):
+				self.proc_dict.pop(pid, None)
+		
 		for proc in psutil.process_iter():
-			# FIXME: Can be coded in a better way, because it's quite ugly at the moment
-			proc_info = self.get_proc_from_pid(proc.pid)
-			index = 0
-			if proc_info is None:
+			if proc.pid in self.proc_dict:
+				p = self.proc_dict[proc.pid]
+			else:
 				p = Process(proc.pid)
-				p.name = str(proc.name())
-			else:
-				p, index = proc_info
-
-			p.update(proc)
-			self.info.update_proc_data(p)
 			
-			if p.name not in self.proc_dict:
-				self.proc_dict[p.name] = []
-			if proc_info is None:
-				self.proc_dict[p.name].append(p)
-			else:
-				self.proc_dict[p.name][index] = p
+			p.update(proc)
+			self.info.add_proc_data(p)
+			
+			self.proc_dict[p.pid] = p
 	
 	
-	def update_proc_list(self):
-		self.proc_list = []
+	def create_virtual_proc_dict(self):
+		self.virtual_proc_dict = {}
 		# Creating a virtual process allows to regroup all the processes sharing the same name
-		for name, p_list in self.proc_dict.items():
-			virtual_proc = Process(is_virtual=True)
-			virtual_proc.name = name
-			virtual_proc.iface = p_list[0].iface
-			for p in p_list:
-				virtual_proc.used_mem += p.used_mem
-				virtual_proc.used_cpu += p.used_cpu
-				virtual_proc.rx += p.rx
-				virtual_proc.tx += p.tx
-				virtual_proc.disk_read += p.disk_read
-				virtual_proc.disk_write += p.disk_write
-			self.proc_list.append(virtual_proc)
+		for pid, p in self.proc_dict.items():
+			if p.name not in self.virtual_proc_dict:
+				self.virtual_proc_dict[p.name] = Process(is_virtual=True, name=p.name)
+			self.virtual_proc_dict[p.name].add_proc_values(p)
 	
 	
 	def get_proc_list(self, nb_proc=4, order_by="mem"):
-		proc_list = []
+		self.create_virtual_proc_dict()
+		proc_list = self.virtual_proc_dict.values()
 		sort_keys = {	"mem": lambda p: p.used_mem,
 						"cpu": lambda p: p.used_cpu,
 						"rx": lambda p: p.rx,
@@ -251,4 +249,4 @@ class ProcessMonitor:
 						"disk_write": lambda p: p.disk_write}
 		if order_by in sort_keys:
 			sort_key = sort_keys[order_by]
-		return sorted(self.proc_list, key=sort_key, reverse=True)[:nb_proc]
+		return sorted(proc_list, key=sort_key, reverse=True)[:nb_proc]
