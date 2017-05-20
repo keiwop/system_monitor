@@ -29,7 +29,7 @@ class Formatting:
 				multiplier, f_prefix, base_prefix = self.units_prefixes[prefix]
 		
 		formatted_size = f"0{self.multiples[0]}"
-		if config.show_unit_zero:
+		if config.show_unit_for_zero:
 			formatted_size += f" {unit}"
 		
 		for i, multiple in enumerate(reversed(self.multiples)):
@@ -52,3 +52,6 @@ class Formatting:
 			
 	def speed(self, value, unit="B/s", prefix=None, precision=.2, show_unit=True):
 		return self.formatter(value, unit, prefix, precision, show_unit)
+
+	def perc(self, value, precision=.1):
+		return f"{value:{precision}f}%"

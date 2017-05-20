@@ -1,19 +1,31 @@
 from process_info import MemInfo, CpuInfo, DiskInfo, NetInfo
 from formatting import Formatting
-
+import os
 
 f = Formatting()
 
 
+class OSInfo:
+	def __init__(self):
+		self.name = os.uname().sysname
+		self.hostname = os.uname().nodename
+		self.kver = os.uname().release
+		self.arch = os.uname().machine
+		self.load = os.getloadavg()
+	
+	def update(self):
+		self.load = os.getloadavg()
 
 class SystemInfo:
 	def __init__(self):
+		self.os = OSInfo()
 		self.mem = MemInfo()
 		self.cpu = CpuInfo()
 		self.disk = DiskInfo()
 		self.net = NetInfo()
 	
 	def update(self):
+		self.os.update()
 		self.mem.update()
 		self.cpu.update()
 		self.disk.update()
@@ -53,3 +65,4 @@ class SystemInfo:
 	
 	def str_disk_write(self):
 		return f"{f.speed(self.disk.write)}"
+	

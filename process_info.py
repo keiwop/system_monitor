@@ -7,14 +7,12 @@ f = Formatting()
 
 
 class MemInfo:
-	total = 0
-	used = 0
-	used_perc = 0
-	free = 0
-	free_perc = 0
-	
 	def __init__(self):
 		self.total = psutil.virtual_memory().total
+		self.used = 0
+		self.used_perc = 0
+		self.free = 0
+		self.free_perc = 0
 	
 	def update(self, proc=None):
 		if proc is not None:
@@ -106,10 +104,11 @@ class Process:
 		self.disk = DiskInfo()
 		self.net = NetInfo()	
 	
-	def update(self, proc):
-		self.proc = proc
-		if self.name is None or self.name == "":
-			self.name = self.proc.name()
+	def update(self, proc=None):
+		if proc is not None:
+			self.proc = proc
+			if self.name is None or self.name == "":
+				self.name = self.proc.name()
 		self.mem.update(proc)
 		self.cpu.update(proc)
 		self.disk.update(proc)
@@ -128,6 +127,7 @@ class Process:
 		self.disk.write += p.disk.write
 		self.net.rx += p.net.rx
 		self.net.tx += p.net.tx
+		self.update()
 	
 	def kill(self):
 		if is_virtual:
